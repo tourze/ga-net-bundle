@@ -23,7 +23,7 @@ final class PublisherCrudControllerTest extends AbstractEasyAdminControllerTestC
 {
     private KernelBrowser $client;
 
-    protected function onSetUp(): void
+    protected function afterEasyAdminSetUp(): void
     {
         $this->client = self::createClientWithDatabase();
         // 确保静态客户端也被正确设置，以支持基类的 testUnauthenticatedAccessDenied 方法
