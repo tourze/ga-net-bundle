@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tourze\GaNetBundle\Tests\Controller\Admin;
 
-use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\Attributes\Test;
@@ -28,7 +27,7 @@ final class RedirectTagCrudControllerTest extends AbstractEasyAdminControllerTes
 {
     private KernelBrowser $client;
 
-    protected function onAfterSetUp(): void
+    protected function afterEasyAdminSetUp(): void
     {
         $this->client = self::createClientWithDatabase();
         // 确保静态客户端也被正确设置，以支持基类的 testUnauthenticatedAccessDenied 方法
