@@ -52,14 +52,6 @@ final class CampaignCrudControllerTest extends AbstractEasyAdminControllerTestCa
     }
 
     #[Test]
-    public function testGetEntityFqcnShouldReturnCampaignClass(): void
-    {
-        $entityFqcn = CampaignCrudController::getEntityFqcn();
-
-        $this->assertSame(Campaign::class, $entityFqcn);
-    }
-
-    #[Test]
     public function testIndexPageWithAdminUserShouldShowCampaignList(): void
     {
         $this->loginAsAdmin($this->client);

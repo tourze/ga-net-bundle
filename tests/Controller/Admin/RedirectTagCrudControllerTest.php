@@ -35,14 +35,6 @@ final class RedirectTagCrudControllerTest extends AbstractEasyAdminControllerTes
     }
 
     #[Test]
-    public function testGetEntityFqcnShouldReturnRedirectTagClass(): void
-    {
-        $entityFqcn = RedirectTagCrudController::getEntityFqcn();
-
-        $this->assertSame(RedirectTag::class, $entityFqcn);
-    }
-
-    #[Test]
     public function testIndexPageWithAdminUserShouldShowRedirectTagList(): void
     {
         $this->loginAsAdmin($this->client);

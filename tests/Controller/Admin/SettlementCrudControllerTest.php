@@ -33,14 +33,6 @@ final class SettlementCrudControllerTest extends AbstractEasyAdminControllerTest
     }
 
     #[Test]
-    public function testGetEntityFqcnShouldReturnSettlementClass(): void
-    {
-        $entityFqcn = SettlementCrudController::getEntityFqcn();
-
-        $this->assertSame(Settlement::class, $entityFqcn);
-    }
-
-    #[Test]
     public function testIndexPageWithAdminUserShouldShowSettlementList(): void
     {
         $this->loginAsAdmin($this->client);

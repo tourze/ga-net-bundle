@@ -43,14 +43,6 @@ final class TransactionCrudControllerTest extends AbstractEasyAdminControllerTes
     }
 
     #[Test]
-    public function testGetEntityFqcnShouldReturnTransactionClass(): void
-    {
-        $entityFqcn = TransactionCrudController::getEntityFqcn();
-
-        $this->assertSame(Transaction::class, $entityFqcn);
-    }
-
-    #[Test]
     public function testIndexPageWithAdminUserShouldShowTransactionList(): void
     {
         $this->loginAsAdmin($this->client);

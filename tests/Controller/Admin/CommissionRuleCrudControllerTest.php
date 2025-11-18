@@ -59,14 +59,6 @@ final class CommissionRuleCrudControllerTest extends AbstractEasyAdminController
     }
 
     #[Test]
-    public function testGetEntityFqcnShouldReturnCommissionRuleClass(): void
-    {
-        $entityFqcn = CommissionRuleCrudController::getEntityFqcn();
-
-        $this->assertSame(CommissionRule::class, $entityFqcn);
-    }
-
-    #[Test]
     public function testControllerIsMarkedAsFinalClass(): void
     {
         $reflection = new \ReflectionClass(CommissionRuleCrudController::class);

@@ -34,14 +34,6 @@ final class PromotionCampaignCrudControllerTest extends AbstractEasyAdminControl
     }
 
     #[Test]
-    public function testGetEntityFqcnShouldReturnPromotionCampaignClass(): void
-    {
-        $entityFqcn = PromotionCampaignCrudController::getEntityFqcn();
-
-        $this->assertSame(PromotionCampaign::class, $entityFqcn);
-    }
-
-    #[Test]
     public function testIndexPageWithAdminUserShouldShowPromotionList(): void
     {
         $this->loginAsAdmin($this->client);

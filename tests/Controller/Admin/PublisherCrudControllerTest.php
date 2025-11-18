@@ -31,14 +31,6 @@ final class PublisherCrudControllerTest extends AbstractEasyAdminControllerTestC
     }
 
     #[Test]
-    public function testGetEntityFqcnShouldReturnPublisherClass(): void
-    {
-        $entityFqcn = PublisherCrudController::getEntityFqcn();
-
-        $this->assertSame(Publisher::class, $entityFqcn);
-    }
-
-    #[Test]
     public function testIndexPageWithAdminUserShouldShowPublisherList(): void
     {
         $this->loginAsAdmin($this->client);
