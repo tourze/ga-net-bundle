@@ -3,13 +3,22 @@ services:
   _defaults:
     autowire: true      # Automatically injects dependencies in your services.
     autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
-    public: true
+    public: false
 
-  Tourze\GaNetBundle\Command\:
-    resource: '../../Command/'
-  Tourze\GaNetBundle\Service\:
-    resource: '../../Service/'
-  Tourze\GaNetBundle\Repository\:
-    resource: '../../Repository/'
+  # Controllers
   Tourze\GaNetBundle\Controller\:
     resource: '../../Controller/'
+    tags: ['controller.service_arguments']
+
+  # Commands (需要公开访问)
+  Tourze\GaNetBundle\Command\:
+    resource: '../../Command/'
+    public: true
+
+  # Services
+  Tourze\GaNetBundle\Service\:
+    resource: '../../Service/'
+
+  # Repositories
+  Tourze\GaNetBundle\Repository\:
+    resource: '../../Repository/'

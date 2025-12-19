@@ -11,7 +11,7 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 use Tourze\GaNetBundle\Entity\Publisher;
 use Tourze\GaNetBundle\Exception\GaNetApiException;
 
-readonly class GaNetApiClient
+readonly final class GaNetApiClient
 {
     private string $baseUrl;
 

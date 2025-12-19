@@ -18,7 +18,7 @@ use Tourze\GaNetBundle\Service\GaNetApiClient;
     name: 'ganet:sync-campaigns',
     description: '同步成果网活动列表数据',
 )]
-class SyncCampaignsCommand extends Command
+final class SyncCampaignsCommand extends Command
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,

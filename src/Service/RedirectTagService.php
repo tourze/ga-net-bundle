@@ -10,12 +10,14 @@ use Tourze\GaNetBundle\Entity\Campaign;
 use Tourze\GaNetBundle\Entity\Publisher;
 use Tourze\GaNetBundle\Entity\RedirectTag;
 use Tourze\GaNetBundle\Repository\RedirectTagRepository;
+use Tourze\UserServiceContracts\UserManagerInterface;
 
 readonly class RedirectTagService
 {
     public function __construct(
         private RedirectTagRepository $redirectTagRepository,
         private EntityManagerInterface $entityManager,
+        private UserManagerInterface $userManager,
     ) {
     }
 
@@ -34,6 +36,11 @@ readonly class RedirectTagService
         ?int $userId = null,
         ?Request $request = null,
     ): array {
+        // 验证用户存在性
+        if (null !== $userId && null === $this->userManager->loadUserByIdentifier((string) $userId)) {
+            throw new \InvalidArgumentException(sprintf('User with ID %d does not exist', $userId));
+        }
+
         $redirectTag = $this->createRedirectTag($publisher, $campaign, $userId, $request);
 
         $tagValue = $redirectTag->getTag();
@@ -54,6 +61,11 @@ readonly class RedirectTagService
         ?int $userId = null,
         ?Request $request = null,
     ): RedirectTag {
+        // 验证用户存在性
+        if (null !== $userId && null === $this->userManager->loadUserByIdentifier((string) $userId)) {
+            throw new \InvalidArgumentException(sprintf('User with ID %d does not exist', $userId));
+        }
+
         $publisherId = $publisher->getPublisherId();
         if (null === $publisherId) {
             throw new \InvalidArgumentException('Publisher ID cannot be null');
@@ -163,6 +175,11 @@ readonly class RedirectTagService
      */
     public function updateTagWithUserInfo(string $tag, int $userId, ?array $additionalContext = null): bool
     {
+        // 验证用户存在性
+        if (null === $this->userManager->loadUserByIdentifier((string) $userId)) {
+            throw new \InvalidArgumentException(sprintf('User with ID %d does not exist', $userId));
+        }
+
         $redirectTag = $this->findActiveByTag($tag);
 
         if (null === $redirectTag) {

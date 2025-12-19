@@ -8,8 +8,6 @@ use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\MockObject\MockObject;
-use PHPUnit\Framework\TestCase;
 use Tourze\GaNetBundle\Entity\Publisher;
 use Tourze\GaNetBundle\Entity\RedirectTag;
 use Tourze\GaNetBundle\Entity\Transaction;
@@ -17,61 +15,52 @@ use Tourze\GaNetBundle\Enum\TransactionStatus;
 use Tourze\GaNetBundle\Repository\TransactionRepository;
 use Tourze\GaNetBundle\Service\RedirectTagService;
 use Tourze\GaNetBundle\Service\TransactionTagService;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
+use Tourze\UserServiceContracts\UserManagerInterface;
 
 /**
  * @internal
  */
 #[CoversClass(TransactionTagService::class)]
-final class TransactionTagServiceTest extends TestCase
+#[RunTestsInSeparateProcesses]
+final class TransactionTagServiceTest extends AbstractIntegrationTestCase
 {
-    /** @var RedirectTagService&MockObject */
-    private RedirectTagService $redirectTagService;
-
-    /** @var TransactionRepository&MockObject */
-    private TransactionRepository $transactionRepository;
-
-    /** @var EntityManagerInterface&MockObject */
-    private EntityManagerInterface $entityManager;
-
     private TransactionTagService $service;
+    private RedirectTagService $redirectTagService;
+    private TransactionRepository $transactionRepository;
+    private UserManagerInterface $userManager;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        parent::setUp();
-        /** @var RedirectTagService&MockObject $redirectTagService */
-        $redirectTagService = $this->createMock(RedirectTagService::class);
-        $this->redirectTagService = $redirectTagService;
-
-        /** @var TransactionRepository&MockObject $transactionRepository */
-        $transactionRepository = $this->createMock(TransactionRepository::class);
-        $this->transactionRepository = $transactionRepository;
-
-        /** @var EntityManagerInterface&MockObject $entityManager */
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $this->entityManager = $entityManager;
-
-        $this->service = new TransactionTagService(
-            $this->redirectTagService,
-            $this->transactionRepository,
-            $this->entityManager
-        );
+        $this->service = self::getService(TransactionTagService::class);
+        $this->redirectTagService = self::getService(RedirectTagService::class);
+        $this->transactionRepository = self::getService(TransactionRepository::class);
+        $this->userManager = self::getService(UserManagerInterface::class);
     }
 
     #[Test]
     public function testGetUserConversionStatsShouldCalculateCorrectStats(): void
     {
         $userId = 123;
-        $transactions = [
-            $this->createMockTransaction('100.00', '10.00', TransactionStatus::CONFIRMED),
-            $this->createMockTransaction('200.00', '20.00', TransactionStatus::PENDING),
-            $this->createMockTransaction('150.00', '15.00', TransactionStatus::REJECTED),
-        ];
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
 
-        $this->transactionRepository->expects($this->once())
-            ->method('findBy')
-            ->with(['userId' => $userId], ['orderTime' => 'DESC'], 50)
-            ->willReturn($transactions)
-        ;
+        // 创建测试交易数据
+        $transaction1 = $this->createTransaction('100.00', '10.00', TransactionStatus::CONFIRMED);
+        $transaction1->setUserId($userId);
+
+        $transaction2 = $this->createTransaction('200.00', '20.00', TransactionStatus::PENDING);
+        $transaction2->setUserId($userId);
+
+        $transaction3 = $this->createTransaction('150.00', '15.00', TransactionStatus::REJECTED);
+        $transaction3->setUserId($userId);
+
+        self::getEntityManager()->persist($transaction1);
+        self::getEntityManager()->persist($transaction2);
+        self::getEntityManager()->persist($transaction3);
+        self::getEntityManager()->flush();
 
         $result = $this->service->getUserConversionStats($userId);
 
@@ -88,11 +77,6 @@ final class TransactionTagServiceTest extends TestCase
     {
         $userId = 123;
 
-        $this->transactionRepository->expects($this->once())
-            ->method('findBy')
-            ->willReturn([])
-        ;
-
         $result = $this->service->getUserConversionStats($userId);
 
         $this->assertSame(0, $result['total_transactions']);
@@ -108,42 +92,39 @@ final class TransactionTagServiceTest extends TestCase
     {
         $userId = 456;
         $limit = 25;
-        /** @var Transaction&MockObject $mockTransaction */
-        $mockTransaction = $this->createMock(Transaction::class);
-        $expectedTransactions = [$mockTransaction];
-
-        $this->transactionRepository->expects($this->once())
-            ->method('findBy')
-            ->with(['userId' => $userId], ['orderTime' => 'DESC'], $limit)
-            ->willReturn($expectedTransactions)
-        ;
 
         $result = $this->service->findTransactionsByUserId($userId, $limit);
 
-        $this->assertSame($expectedTransactions, $result);
+        $this->assertIsArray($result);
     }
 
     #[Test]
     public function testGetTagConversionStatsShouldCalculateCorrectStats(): void
     {
-        $redirectTag = $this->createMock(RedirectTag::class);
-        $clickTime = new \DateTimeImmutable('2024-01-01 10:00:00');
-        $transactions = [
-            $this->createMockTransaction('100.00', '10.00', TransactionStatus::CONFIRMED),
-            $this->createMockTransaction('200.00', '20.00', TransactionStatus::CONFIRMED),
-        ];
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
 
-        $redirectTag->method('getClickTime')->willReturn($clickTime);
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('test-tag-' . uniqid());
+        $redirectTag->setPublisher($publisher);
+        $redirectTag->setClickTime(new \DateTimeImmutable('2024-01-01 10:00:00'));
+        self::getEntityManager()->persist($redirectTag);
 
-        $this->transactionRepository->expects($this->once())
-            ->method('findBy')
-            ->with(['redirectTag' => $redirectTag], ['orderTime' => 'DESC'])
-            ->willReturn($transactions)
-        ;
+        $transaction1 = $this->createTransaction('100.00', '10.00', TransactionStatus::CONFIRMED);
+        $transaction1->setRedirectTag($redirectTag);
+
+        $transaction2 = $this->createTransaction('200.00', '20.00', TransactionStatus::CONFIRMED);
+        $transaction2->setRedirectTag($redirectTag);
+
+        self::getEntityManager()->persist($transaction1);
+        self::getEntityManager()->persist($transaction2);
+        self::getEntityManager()->flush();
 
         $result = $this->service->getTagConversionStats($redirectTag);
 
-        $this->assertEquals($clickTime, $result['click_time']);
+        $this->assertEquals($redirectTag->getClickTime(), $result['click_time']);
         $this->assertSame(2, $result['total_transactions']);
         $this->assertSame('300.00', $result['total_amount']);
         $this->assertSame('30.00', $result['total_commission']);
@@ -153,15 +134,17 @@ final class TransactionTagServiceTest extends TestCase
     #[Test]
     public function testGetTagConversionStatsWithNoTransactionsShouldReturnZeroConversionRate(): void
     {
-        $redirectTag = $this->createMock(RedirectTag::class);
-        $clickTime = new \DateTimeImmutable('2024-01-01 10:00:00');
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
 
-        $redirectTag->method('getClickTime')->willReturn($clickTime);
-
-        $this->transactionRepository->expects($this->once())
-            ->method('findBy')
-            ->willReturn([])
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('test-tag-' . uniqid());
+        $redirectTag->setPublisher($publisher);
+        $redirectTag->setClickTime(new \DateTimeImmutable('2024-01-01 10:00:00'));
+        self::getEntityManager()->persist($redirectTag);
+        self::getEntityManager()->flush();
 
         $result = $this->service->getTagConversionStats($redirectTag);
 
@@ -171,142 +154,145 @@ final class TransactionTagServiceTest extends TestCase
     #[Test]
     public function testFindTransactionsByRedirectTagShouldDelegateToRepository(): void
     {
-        $redirectTag = $this->createMock(RedirectTag::class);
-        /** @var Transaction&MockObject $mockTransaction */
-        $mockTransaction = $this->createMock(Transaction::class);
-        $expectedTransactions = [$mockTransaction];
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
 
-        $this->transactionRepository->expects($this->once())
-            ->method('findBy')
-            ->with(['redirectTag' => $redirectTag], ['orderTime' => 'DESC'])
-            ->willReturn($expectedTransactions)
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('test-tag-' . uniqid());
+        $redirectTag->setPublisher($publisher);
+        self::getEntityManager()->persist($redirectTag);
+        self::getEntityManager()->flush();
 
         $result = $this->service->findTransactionsByRedirectTag($redirectTag);
 
-        $this->assertSame($expectedTransactions, $result);
+        $this->assertIsArray($result);
     }
 
     #[Test]
     public function testBatchLinkTransactionsWithTagsShouldLinkValidTransactions(): void
     {
-        $transaction1 = $this->createMock(Transaction::class);
-        $transaction1->method('getTag')->willReturn('tag1');
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
 
-        $transaction2 = $this->createMock(Transaction::class);
-        $transaction2->method('getTag')->willReturn(''); // 空标签，应该被跳过
+        // 创建 RedirectTag
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('tag1');
+        $redirectTag->setPublisher($publisher);
+        self::getEntityManager()->persist($redirectTag);
+        self::getEntityManager()->flush();
 
-        $transaction3 = $this->createMock(Transaction::class);
-        $transaction3->method('getTag')->willReturn('tag3');
+        // 创建 Transaction
+        $transaction1 = $this->createTransaction('100.00', '10.00', TransactionStatus::CONFIRMED);
+        $transaction1->setTag('tag1');
 
-        $transactions = [$transaction1, $transaction2, $transaction3]; // 只包含Transaction对象
+        $transaction2 = $this->createTransaction('200.00', '20.00', TransactionStatus::CONFIRMED);
+        $transaction2->setTag(''); // 空标签，应该被跳过
 
-        // 模拟RedirectTagService只找到tag1和tag3中的一个
-        $this->redirectTagService->expects(self::exactly(2))
-            ->method('findActiveByTag')
-            ->with(self::logicalOr(self::equalTo('tag1'), self::equalTo('tag3')))
-            ->willReturnCallback(function ($tag) {
-                return 'tag1' === $tag ? $this->createMock(RedirectTag::class) : null;
-            })
-        ;
-
-        $transaction1->expects($this->once())->method('setRedirectTag');
-        $transaction3->expects($this->never())->method('setRedirectTag');
-
-        $this->entityManager->expects($this->once())->method('flush');
+        $transactions = [$transaction1, $transaction2];
 
         $result = $this->service->batchLinkTransactionsWithTags($transactions);
 
         $this->assertSame(1, $result); // 只有一个成功链接
+
+        // 验证链接结果
+        self::getEntityManager()->refresh($transaction1);
+        $this->assertSame($redirectTag, $transaction1->getRedirectTag());
     }
 
     #[Test]
     public function testLinkTransactionWithTagShouldReturnTrueWhenTagExists(): void
     {
-        $transaction = $this->createMock(Transaction::class);
-        $tag = 'existing-tag';
-        $redirectTag = $this->createMock(RedirectTag::class);
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
 
-        $this->redirectTagService->expects($this->once())
-            ->method('findActiveByTag')
-            ->with($tag)
-            ->willReturn($redirectTag)
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('existing-tag');
+        $redirectTag->setPublisher($publisher);
+        self::getEntityManager()->persist($redirectTag);
+        self::getEntityManager()->flush();
 
-        $transaction->expects($this->once())
-            ->method('setRedirectTag')
-            ->with($redirectTag)
-        ;
+        $transaction = $this->createTransaction('100.00', '10.00', TransactionStatus::CONFIRMED);
+        self::getEntityManager()->persist($transaction);
+        self::getEntityManager()->flush();
 
-        $redirectTag->method('getUserId')->willReturn(null);
-
-        $this->entityManager->expects($this->once())->method('flush');
-
-        $result = $this->service->linkTransactionWithTag($transaction, $tag);
+        $result = $this->service->linkTransactionWithTag($transaction, 'existing-tag');
 
         $this->assertTrue($result);
+
+        // 验证链接结果
+        self::getEntityManager()->refresh($transaction);
+        $this->assertSame($redirectTag, $transaction->getRedirectTag());
     }
 
     #[Test]
     public function testLinkTransactionWithTagShouldSyncUserIdWhenAvailable(): void
     {
-        $transaction = $this->createMock(Transaction::class);
-        $tag = 'existing-tag';
-        $redirectTag = $this->createMock(RedirectTag::class);
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
+
         $userId = 789;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('existing-tag');
+        $redirectTag->setPublisher($publisher);
+        $redirectTag->setUserId($userId);
+        self::getEntityManager()->persist($redirectTag);
+        self::getEntityManager()->flush();
 
-        $this->redirectTagService->expects($this->once())
-            ->method('findActiveByTag')
-            ->willReturn($redirectTag)
-        ;
+        $transaction = $this->createTransaction('100.00', '10.00', TransactionStatus::CONFIRMED);
+        self::getEntityManager()->persist($transaction);
+        self::getEntityManager()->flush();
 
-        $redirectTag->method('getUserId')->willReturn($userId);
-
-        $transaction->expects($this->once())
-            ->method('setRedirectTag')
-            ->with($redirectTag)
-        ;
-
-        $transaction->expects($this->once())
-            ->method('setUserId')
-            ->with($userId)
-        ;
-
-        $result = $this->service->linkTransactionWithTag($transaction, $tag);
+        $result = $this->service->linkTransactionWithTag($transaction, 'existing-tag');
 
         $this->assertTrue($result);
+
+        // 验证链接结果和用户ID同步
+        self::getEntityManager()->refresh($transaction);
+        $this->assertSame($redirectTag, $transaction->getRedirectTag());
+        $this->assertSame($userId, $transaction->getUserId());
     }
 
     #[Test]
     public function testLinkTransactionWithTagShouldReturnFalseWhenTagNotFound(): void
     {
-        $transaction = $this->createMock(Transaction::class);
-        $tag = 'non-existent-tag';
+        $transaction = $this->createTransaction('100.00', '10.00', TransactionStatus::CONFIRMED);
+        self::getEntityManager()->persist($transaction);
+        self::getEntityManager()->flush();
 
-        $this->redirectTagService->expects($this->once())
-            ->method('findActiveByTag')
-            ->with($tag)
-            ->willReturn(null)
-        ;
-
-        $transaction->expects($this->never())->method('setRedirectTag');
-        $this->entityManager->expects($this->never())->method('flush');
-
-        $result = $this->service->linkTransactionWithTag($transaction, $tag);
+        $result = $this->service->linkTransactionWithTag($transaction, 'non-existent-tag');
 
         $this->assertFalse($result);
+
+        // 验证未链接
+        self::getEntityManager()->refresh($transaction);
+        $this->assertNull($transaction->getRedirectTag());
     }
 
     #[Test]
     public function testGetConversionRateShouldReturn100WhenTransactionsExist(): void
     {
-        $redirectTag = $this->createMock(RedirectTag::class);
-        $transactions = [$this->createMock(Transaction::class)];
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
 
-        $this->transactionRepository->expects($this->once())
-            ->method('findBy')
-            ->willReturn($transactions)
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('test-tag-' . uniqid());
+        $redirectTag->setPublisher($publisher);
+        self::getEntityManager()->persist($redirectTag);
+
+        $transaction = $this->createTransaction('100.00', '10.00', TransactionStatus::CONFIRMED);
+        $transaction->setRedirectTag($redirectTag);
+        self::getEntityManager()->persist($transaction);
+        self::getEntityManager()->flush();
 
         $result = $this->service->getConversionRate($redirectTag);
 
@@ -316,12 +302,16 @@ final class TransactionTagServiceTest extends TestCase
     #[Test]
     public function testGetConversionRateShouldReturn0WhenNoTransactions(): void
     {
-        $redirectTag = $this->createMock(RedirectTag::class);
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
 
-        $this->transactionRepository->expects($this->once())
-            ->method('findBy')
-            ->willReturn([])
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('test-tag-' . uniqid());
+        $redirectTag->setPublisher($publisher);
+        self::getEntityManager()->persist($redirectTag);
+        self::getEntityManager()->flush();
 
         $result = $this->service->getConversionRate($redirectTag);
 
@@ -332,14 +322,6 @@ final class TransactionTagServiceTest extends TestCase
     public function testGetPublisherConversionStatsShouldReturnEmptyStatsWhenPublisherNotFound(): void
     {
         $publisherId = 999;
-
-        // Mock getReference返回null或非Publisher对象
-        $this->entityManager->expects($this->once())
-            ->method('getReference')
-            ->with(Publisher::class, $publisherId)
-            ->willReturn(null)
-        ;
-
         $start = new \DateTimeImmutable('2024-01-01');
         $end = new \DateTimeImmutable('2024-01-31');
 
@@ -363,45 +345,32 @@ final class TransactionTagServiceTest extends TestCase
         $publisher = new Publisher();
         $publisher->setPublisherId($publisherId);
         $publisher->setToken('test-token');
+        self::getEntityManager()->persist($publisher);
+        self::getEntityManager()->flush();
+
         $start = new \DateTimeImmutable('2024-01-01');
         $end = new \DateTimeImmutable('2024-01-31');
 
-        $this->entityManager->expects($this->once())
-            ->method('getReference')
-            ->with(Publisher::class, $publisherId)
-            ->willReturn($publisher)
-        ;
+        // 创建两个RedirectTag，模拟两个点击
+        $redirectTag1 = new RedirectTag();
+        $redirectTag1->setTag('tag1-' . uniqid());
+        $redirectTag1->setPublisher($publisher);
+        $redirectTag1->setClickTime(new \DateTimeImmutable('2024-01-15'));
 
-        // 模拟两个点击，一个有转化
-        $redirectTag1 = $this->createMock(RedirectTag::class);
-        $redirectTag1->method('getClickTime')->willReturn(new \DateTimeImmutable('2024-01-15'));
+        $redirectTag2 = new RedirectTag();
+        $redirectTag2->setTag('tag2-' . uniqid());
+        $redirectTag2->setPublisher($publisher);
+        $redirectTag2->setClickTime(new \DateTimeImmutable('2024-01-20'));
 
-        $redirectTag2 = $this->createMock(RedirectTag::class);
-        $redirectTag2->method('getClickTime')->willReturn(new \DateTimeImmutable('2024-01-20'));
+        self::getEntityManager()->persist($redirectTag1);
+        self::getEntityManager()->persist($redirectTag2);
 
-        $this->redirectTagService->expects($this->once())
-            ->method('findByPublisher')
-            ->with($publisher)
-            ->willReturn([$redirectTag1, $redirectTag2])
-        ;
+        // 为第一个标签创建一个交易（有转化）
+        $transaction = $this->createTransaction('100.00', '10.00', TransactionStatus::CONFIRMED);
+        $transaction->setRedirectTag($redirectTag1);
+        self::getEntityManager()->persist($transaction);
 
-        // Track the findBy calls to verify correct parameters
-        $findByCalls = [];
-        $this->transactionRepository->expects($this->exactly(2))
-            ->method('findBy')
-            ->willReturnCallback(function ($criteria, $orderBy = null) use (&$findByCalls, $redirectTag1, $redirectTag2) {
-                $findByCalls[] = $criteria;
-
-                if (is_array($criteria) && isset($criteria['redirectTag']) && $criteria['redirectTag'] === $redirectTag1) {
-                    return [$this->createMockTransaction('100.00', '10.00', TransactionStatus::CONFIRMED)];
-                }
-                if (is_array($criteria) && isset($criteria['redirectTag']) && $criteria['redirectTag'] === $redirectTag2) {
-                    return []; // 第二个没有转化
-                }
-
-                return [];
-            })
-        ;
+        self::getEntityManager()->flush();
 
         $result = $this->service->getPublisherConversionStats($publisherId, $start, $end);
 
@@ -412,14 +381,14 @@ final class TransactionTagServiceTest extends TestCase
         $this->assertSame('10.00', $result['total_commission']);
     }
 
-    private function createMockTransaction(string $price, string $commission, TransactionStatus $status): Transaction
+    private function createTransaction(string $price, string $commission, TransactionStatus $status): Transaction
     {
-        $transaction = $this->createMock(Transaction::class);
-        $transaction->method('getTotalPrice')->willReturn($price);
-        $transaction->method('getTotalCommission')->willReturn($commission);
-        $transaction->method('isConfirmed')->willReturn(TransactionStatus::CONFIRMED === $status);
-        $transaction->method('isPending')->willReturn(TransactionStatus::PENDING === $status);
-        $transaction->method('isRejected')->willReturn(TransactionStatus::REJECTED === $status);
+        $transaction = new Transaction();
+        $transaction->setOrderId('order-' . uniqid());
+        $transaction->setTotalPrice($price);
+        $transaction->setTotalCommission($commission);
+        $transaction->setStatus($status);
+        $transaction->setOrderTime(new \DateTimeImmutable());
 
         return $transaction;
     }

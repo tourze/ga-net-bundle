@@ -14,7 +14,7 @@ use Tourze\PHPUnitSymfonyKernelTest\Attribute\AsRepository;
  * @extends ServiceEntityRepository<RedirectTag>
  */
 #[AsRepository(entityClass: RedirectTag::class)]
-class RedirectTagRepository extends ServiceEntityRepository
+final class RedirectTagRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

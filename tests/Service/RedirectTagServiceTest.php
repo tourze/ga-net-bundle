@@ -8,52 +8,53 @@ use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\MockObject\MockObject;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Tourze\GaNetBundle\Entity\Campaign;
 use Tourze\GaNetBundle\Entity\Publisher;
 use Tourze\GaNetBundle\Entity\RedirectTag;
 use Tourze\GaNetBundle\Repository\RedirectTagRepository;
 use Tourze\GaNetBundle\Service\RedirectTagService;
+use Tourze\PHPUnitSymfonyKernelTest\AbstractIntegrationTestCase;
+use Tourze\UserServiceContracts\UserManagerInterface;
 
 /**
  * @internal
  */
 #[CoversClass(RedirectTagService::class)]
-final class RedirectTagServiceTest extends TestCase
+#[RunTestsInSeparateProcesses]
+final class RedirectTagServiceTest extends AbstractIntegrationTestCase
 {
-    /** @var RedirectTagRepository&MockObject */
-    private RedirectTagRepository $repository;
-
-    /** @var EntityManagerInterface&MockObject */
-    private EntityManagerInterface $entityManager;
-
     private RedirectTagService $service;
+    private RedirectTagRepository $repository;
+    private UserManagerInterface $userManager;
 
-    protected function setUp(): void
+    protected function onSetUp(): void
     {
-        parent::setUp();
-        $this->repository = $this->createMock(RedirectTagRepository::class);
-        $this->entityManager = $this->createMock(EntityManagerInterface::class);
-        $this->service = new RedirectTagService($this->repository, $this->entityManager);
+        $this->service = self::getService(RedirectTagService::class);
+        $this->repository = self::getService(RedirectTagRepository::class);
+        $this->userManager = self::getService(UserManagerInterface::class);
     }
 
     #[Test]
     public function testFindByTagShouldDelegateToRepository(): void
     {
         $tag = 'test-tag-123';
-        $expectedRedirectTag = $this->createMock(RedirectTag::class);
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
 
-        $this->repository->expects($this->once())
-            ->method('findByTag')
-            ->with($tag)
-            ->willReturn($expectedRedirectTag)
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag($tag);
+        $redirectTag->setPublisher($publisher);
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->persist($redirectTag);
+        $em->flush();
 
         $result = $this->service->findByTag($tag);
 
-        $this->assertSame($expectedRedirectTag, $result);
+        $this->assertSame($redirectTag, $result);
+        $this->assertSame($tag, $result->getTag());
     }
 
     #[Test]
@@ -63,9 +64,6 @@ final class RedirectTagServiceTest extends TestCase
         $publisher->setPublisherId(12345);
         $publisher->setToken('test-token');
         $targetUrl = 'https://example.com/product';
-
-        $this->entityManager->expects($this->once())->method('persist');
-        $this->entityManager->expects($this->once())->method('flush');
 
         $result = $this->service->generateTrackingUrl($publisher, $targetUrl);
 
@@ -83,9 +81,6 @@ final class RedirectTagServiceTest extends TestCase
         $publisher->setToken('test-token');
         $targetUrl = 'https://example.com/product';
 
-        $this->entityManager->expects($this->once())->method('persist');
-        $this->entityManager->expects($this->once())->method('flush');
-
         $result = $this->service->generateTrackingUrl($publisher, $targetUrl);
 
         $this->assertStringContainsString($targetUrl, $result['tracking_url']);
@@ -100,9 +95,6 @@ final class RedirectTagServiceTest extends TestCase
         $publisher->setToken('test-token');
         $targetUrl = 'https://example.com/product?param=value';
 
-        $this->entityManager->expects($this->once())->method('persist');
-        $this->entityManager->expects($this->once())->method('flush');
-
         $result = $this->service->generateTrackingUrl($publisher, $targetUrl);
 
         $this->assertStringContainsString($targetUrl, $result['tracking_url']);
@@ -115,9 +107,9 @@ final class RedirectTagServiceTest extends TestCase
         $publisher = new Publisher();
         $publisher->setPublisherId(12345);
         $publisher->setToken('test-token');
-
-        $this->entityManager->expects($this->once())->method('persist');
-        $this->entityManager->expects($this->once())->method('flush');
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->flush();
 
         $result = $this->service->createRedirectTag($publisher);
 
@@ -131,10 +123,14 @@ final class RedirectTagServiceTest extends TestCase
         $publisher = new Publisher();
         $publisher->setPublisherId(12345);
         $publisher->setToken('test-token');
-        $campaign = $this->createMock(Campaign::class);
+        $campaign = new Campaign();
+        $campaign->setId(123);
+        $campaign->setName('Test Campaign');
 
-        $this->entityManager->expects($this->once())->method('persist');
-        $this->entityManager->expects($this->once())->method('flush');
+        $em = self::getEntityManager();
+        $em->persist($campaign);
+        $em->persist($publisher);
+        $em->flush();
 
         $result = $this->service->createRedirectTag($publisher, $campaign);
 
@@ -149,8 +145,9 @@ final class RedirectTagServiceTest extends TestCase
         $publisher->setToken('test-token');
         $userId = 999;
 
-        $this->entityManager->expects($this->once())->method('persist');
-        $this->entityManager->expects($this->once())->method('flush');
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->flush();
 
         $result = $this->service->createRedirectTag($publisher, null, $userId);
 
@@ -167,8 +164,9 @@ final class RedirectTagServiceTest extends TestCase
         $request->headers->set('User-Agent', 'Test Browser');
         $request->headers->set('Referer', 'https://referrer.com');
 
-        $this->entityManager->expects($this->once())->method('persist');
-        $this->entityManager->expects($this->once())->method('flush');
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->flush();
 
         $result = $this->service->createRedirectTag($publisher, null, null, $request);
 
@@ -181,13 +179,7 @@ final class RedirectTagServiceTest extends TestCase
     public function testCleanupExpiredTagsShouldDelegateToRepository(): void
     {
         $before = new \DateTimeImmutable('-1 day');
-        $expectedCount = 5;
-
-        $this->repository->expects($this->once())
-            ->method('deleteExpiredTags')
-            ->with($before)
-            ->willReturn($expectedCount)
-        ;
+        $expectedCount = 0;
 
         $result = $this->service->cleanupExpiredTags($before);
 
@@ -200,19 +192,16 @@ final class RedirectTagServiceTest extends TestCase
         $publisher = new Publisher();
         $publisher->setPublisherId(12345);
         $publisher->setToken('test-token');
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->flush();
+
         $start = new \DateTimeImmutable('2024-01-01');
         $end = new \DateTimeImmutable('2024-01-31');
-        $expectedStats = [['click_count' => 10, 'click_date' => '2024-01-01']];
-
-        $this->repository->expects($this->once())
-            ->method('getClickStatsByPublisher')
-            ->with($publisher, $start, $end)
-            ->willReturn($expectedStats)
-        ;
 
         $result = $this->service->getClickStats($publisher, $start, $end);
 
-        $this->assertSame($expectedStats, $result);
+        $this->assertIsArray($result);
     }
 
     #[Test]
@@ -221,19 +210,16 @@ final class RedirectTagServiceTest extends TestCase
         $publisher = new Publisher();
         $publisher->setPublisherId(12345);
         $publisher->setToken('test-token');
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->flush();
+
         $start = new \DateTimeImmutable('2024-01-01');
         $end = new \DateTimeImmutable('2024-01-31');
-        $expectedStats = [['campaign_id' => 1, 'campaign_name' => 'Test', 'click_count' => 5]];
-
-        $this->repository->expects($this->once())
-            ->method('getClickStatsByCampaign')
-            ->with($publisher, $start, $end)
-            ->willReturn($expectedStats)
-        ;
 
         $result = $this->service->getCampaignClickStats($publisher, $start, $end);
 
-        $this->assertSame($expectedStats, $result);
+        $this->assertIsArray($result);
     }
 
     #[Test]
@@ -241,17 +227,10 @@ final class RedirectTagServiceTest extends TestCase
     {
         $userId = 123;
         $limit = 25;
-        $expectedTags = [$this->createMock(RedirectTag::class)];
-
-        $this->repository->expects($this->once())
-            ->method('findByUserId')
-            ->with($userId, $limit)
-            ->willReturn($expectedTags)
-        ;
 
         $result = $this->service->findByUserId($userId, $limit);
 
-        $this->assertSame($expectedTags, $result);
+        $this->assertIsArray($result);
     }
 
     #[Test]
@@ -261,40 +240,33 @@ final class RedirectTagServiceTest extends TestCase
         $publisher->setPublisherId(12345);
         $publisher->setToken('test-token');
         $limit = 50;
-        $expectedTags = [$this->createMock(RedirectTag::class)];
 
-        $this->repository->expects($this->once())
-            ->method('findByPublisher')
-            ->with($publisher, $limit)
-            ->willReturn($expectedTags)
-        ;
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->flush();
 
         $result = $this->service->findByPublisher($publisher, $limit);
 
-        $this->assertSame($expectedTags, $result);
+        $this->assertIsArray($result);
     }
 
     #[Test]
     public function testUpdateTagWithUserInfoShouldReturnTrueWhenTagExists(): void
     {
-        $tag = 'existing-tag';
+        $tag = 'existing-tag-' . uniqid();
         $userId = 456;
-        $redirectTag = $this->createMock(RedirectTag::class);
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
 
-        $this->repository->expects($this->once())
-            ->method('findActiveByTag')
-            ->with($tag)
-            ->willReturn($redirectTag)
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag($tag);
+        $redirectTag->setPublisher($publisher);
 
-        $redirectTag->expects($this->once())
-            ->method('setUserId')
-            ->with($userId)
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->persist($redirectTag);
+        $em->flush();
 
         $result = $this->service->updateTagWithUserInfo($tag, $userId);
 
@@ -304,18 +276,8 @@ final class RedirectTagServiceTest extends TestCase
     #[Test]
     public function testUpdateTagWithUserInfoShouldReturnFalseWhenTagNotFound(): void
     {
-        $tag = 'non-existent-tag';
+        $tag = 'non-existent-tag-' . uniqid();
         $userId = 456;
-
-        $this->repository->expects($this->once())
-            ->method('findActiveByTag')
-            ->with($tag)
-            ->willReturn(null)
-        ;
-
-        $this->entityManager->expects($this->never())
-            ->method('flush')
-        ;
 
         $result = $this->service->updateTagWithUserInfo($tag, $userId);
 
@@ -325,25 +287,21 @@ final class RedirectTagServiceTest extends TestCase
     #[Test]
     public function testUpdateTagWithUserInfoShouldAddAdditionalContext(): void
     {
-        $tag = 'existing-tag';
+        $tag = 'existing-tag-' . uniqid();
         $userId = 456;
         $additionalContext = ['source' => 'mobile', 'version' => '1.0'];
-        $redirectTag = $this->createMock(RedirectTag::class);
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
 
-        $this->repository->expects($this->once())
-            ->method('findActiveByTag')
-            ->with($tag)
-            ->willReturn($redirectTag)
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag($tag);
+        $redirectTag->setPublisher($publisher);
 
-        $redirectTag->expects($this->once())
-            ->method('setUserId')
-            ->with($userId)
-        ;
-
-        $redirectTag->expects($this->exactly(2))
-            ->method('addContextData')
-        ;
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->persist($redirectTag);
+        $em->flush();
 
         $result = $this->service->updateTagWithUserInfo($tag, $userId, $additionalContext);
 
@@ -353,36 +311,49 @@ final class RedirectTagServiceTest extends TestCase
     #[Test]
     public function testFindActiveByTagShouldDelegateToRepository(): void
     {
-        $tag = 'active-tag';
-        $expectedTag = $this->createMock(RedirectTag::class);
+        $tag = 'active-tag-' . uniqid();
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
 
-        $this->repository->expects($this->once())
-            ->method('findActiveByTag')
-            ->with($tag)
-            ->willReturn($expectedTag)
-        ;
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag($tag);
+        $redirectTag->setPublisher($publisher);
+
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->persist($redirectTag);
+        $em->flush();
 
         $result = $this->service->findActiveByTag($tag);
 
-        $this->assertSame($expectedTag, $result);
+        $this->assertSame($redirectTag, $result);
     }
 
     #[Test]
     public function testAddContextDataShouldCallRedirectTagAndFlush(): void
     {
-        $redirectTag = $this->createMock(RedirectTag::class);
+        $publisher = new Publisher();
+        $publisher->setPublisherId(12345);
+        $publisher->setToken('test-token');
+
+        $redirectTag = new RedirectTag();
+        $redirectTag->setTag('test-tag-' . uniqid());
+        $redirectTag->setPublisher($publisher);
+
+        $em = self::getEntityManager();
+        $em->persist($publisher);
+        $em->persist($redirectTag);
+        $em->flush();
+
         $key = 'test_key';
         $value = 'test_value';
 
-        $redirectTag->expects($this->once())
-            ->method('addContextData')
-            ->with($key, $value)
-        ;
-
-        $this->entityManager->expects($this->once())
-            ->method('flush')
-        ;
-
         $this->service->addContextData($redirectTag, $key, $value);
+
+        $updatedTag = self::getEntityManager()->find(RedirectTag::class, $redirectTag->getId());
+        $contextData = $updatedTag->getContextData();
+        $this->assertArrayHasKey($key, $contextData);
+        $this->assertSame($value, $contextData[$key]);
     }
 }

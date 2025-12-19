@@ -15,7 +15,7 @@ use Tourze\PHPUnitSymfonyKernelTest\Attribute\AsRepository;
  * @extends ServiceEntityRepository<CommissionRule>
  */
 #[AsRepository(entityClass: CommissionRule::class)]
-class CommissionRuleRepository extends ServiceEntityRepository
+final class CommissionRuleRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

@@ -20,7 +20,7 @@ use Tourze\GaNetBundle\Service\GaNetApiClient;
     name: 'ganet:sync-promotions',
     description: '同步成果网促销活动数据',
 )]
-class SyncPromotionsCommand extends Command
+final class SyncPromotionsCommand extends Command
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,

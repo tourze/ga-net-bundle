@@ -15,7 +15,7 @@ use Tourze\GaNetBundle\Entity\RedirectTag;
 use Tourze\GaNetBundle\Entity\Settlement;
 use Tourze\GaNetBundle\Entity\Transaction;
 
-readonly class AdminMenu implements MenuProviderInterface
+readonly final class AdminMenu implements MenuProviderInterface
 {
     public function __construct(
         private LinkGeneratorInterface $linkGenerator,

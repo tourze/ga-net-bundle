@@ -9,6 +9,7 @@ use Tourze\GaNetBundle\Entity\Publisher;
 use Tourze\GaNetBundle\Entity\RedirectTag;
 use Tourze\GaNetBundle\Entity\Transaction;
 use Tourze\GaNetBundle\Repository\TransactionRepository;
+use Tourze\UserServiceContracts\UserManagerInterface;
 
 readonly class TransactionTagService
 {
@@ -16,6 +17,7 @@ readonly class TransactionTagService
         private RedirectTagService $redirectTagService,
         private TransactionRepository $transactionRepository,
         private EntityManagerInterface $entityManager,
+        private UserManagerInterface $userManager,
     ) {
     }
 
@@ -24,6 +26,8 @@ readonly class TransactionTagService
      */
     public function getUserConversionStats(int $userId): array
     {
+        $this->validateUser($userId);
+
         $transactions = $this->findTransactionsByUserId($userId);
 
         $stats = [
@@ -142,9 +146,10 @@ readonly class TransactionTagService
 
         $transaction->setRedirectTag($redirectTag);
 
-        // 如果RedirectTag有用户ID，同步到Transaction
+        // 如果RedirectTag有用户ID，验证用户存在并同步到Transaction
         $userId = $redirectTag->getUserId();
         if (null !== $userId) {
+            $this->validateUser($userId);
             $transaction->setUserId($userId);
         }
 
@@ -280,6 +285,20 @@ readonly class TransactionTagService
         }
 
         return round(($conversionCount / $clickCount) * 100, 2);
+    }
+
+    /**
+     * 验证用户是否存在
+     *
+     * @param int $userId 用户ID
+     * @throws \InvalidArgumentException 当用户不存在时抛出异常
+     */
+    private function validateUser(int $userId): void
+    {
+        $user = $this->userManager->loadUserByIdentifier((string) $userId);
+        if (null === $user) {
+            throw new \InvalidArgumentException(sprintf('User with ID %d does not exist', $userId));
+        }
     }
 
     /**

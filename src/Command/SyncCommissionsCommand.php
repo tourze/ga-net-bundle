@@ -21,7 +21,7 @@ use Tourze\GaNetBundle\Service\GaNetApiClient;
     name: 'ganet:sync-commissions',
     description: '同步成果网佣金规则数据',
 )]
-class SyncCommissionsCommand extends Command
+final class SyncCommissionsCommand extends Command
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,

@@ -16,7 +16,7 @@ use Tourze\PHPUnitSymfonyKernelTest\Attribute\AsRepository;
  * @extends ServiceEntityRepository<Transaction>
  */
 #[AsRepository(entityClass: Transaction::class)]
-class TransactionRepository extends ServiceEntityRepository
+final class TransactionRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

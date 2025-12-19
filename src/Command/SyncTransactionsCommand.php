@@ -19,7 +19,7 @@ use Tourze\GaNetBundle\Service\GaNetApiClient;
     name: 'ganet:sync-transactions',
     description: '同步成果网交易数据',
 )]
-class SyncTransactionsCommand extends Command
+final class SyncTransactionsCommand extends Command
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
